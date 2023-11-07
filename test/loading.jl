@@ -1331,3 +1331,8 @@ end
         @test filesize(cache_path) != cache_size
     end
 end
+
+@testset "-m" begin
+    rot13proj = joinpath(@__DIR__, "project", "Rot13")
+    @test readchomp(`$(Base.julia_cmd()) --startup-file=no --project=$rot13proj -m Rot13 --project nowhere ABJURER`) == "--cebwrpg\nabjurer\nNOWHERE"
+end

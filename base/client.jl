@@ -240,7 +240,7 @@ function exec_options(opts)
         if cmd_suppresses_program(cmd)
             arg_is_program = false
             repl = false
-        elseif cmd == 'L'
+        elseif cmd == 'L' || cmd == 'm'
             # nothing
         elseif cmd == 'B' # --bug-report
             # If we're doing a bug report, don't load anything else. We will
@@ -292,6 +292,30 @@ function exec_options(opts)
         elseif cmd == 'E'
             invokelatest(show, Core.eval(Main, parse_input_line(arg)))
             println()
+        elseif cmd == 'm'
+            mods = split(arg, ".")
+            pkg = popfirst!(mods)
+            # Some more validation of `mods` and `pkg`?
+            m = Base.require(Main, Symbol(pkg))
+            while !isempty(mods)
+                if !isdefined(m, Symbol(mods[1])) &&
+                    error("`$(mods[1])` not defined")
+                end
+                m = getfield(m, Symbol(popfirst!(mods)))
+                if !(m isa Module)
+                    error("`$(mods[1])` is not a module")
+                end
+            end
+            if !isdefined(m, :main)
+                error("no `main` method defined in module")
+            end
+            main = getfield(m, Symbol("main"))
+            retval = @invokelatest main(ARGS)
+            retval === nothing && (retval = 0)
+            if !(retval isa Integer)
+                error("`main` method did not return an integer")
+            end
+            exit(retval)
         elseif cmd == 'L'
             # load file immediately on all processors
             if !distributed_mode

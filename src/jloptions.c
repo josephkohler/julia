@@ -118,6 +118,8 @@ static const char opts[]  =
     // actions
     " -e, --eval <expr>          Evaluate <expr>\n"
     " -E, --print <expr>         Evaluate <expr> and display the result\n"
+    " -m, --module <Package>[.SubModule] [args]\n"
+    "                            Run function `<Package>.[SubModule.]main(args))\n"
     " -L, --load <file>          Load <file> immediately on all processors\n\n"
 
     // parallel options
@@ -261,7 +263,7 @@ JL_DLLEXPORT void jl_parse_opts(int *argcp, char ***argvp)
            opt_gc_threads,
            opt_permalloc_pkgimg
     };
-    static const char* const shortopts = "+vhqH:e:E:L:J:C:it:p:O:g:";
+    static const char* const shortopts = "+vhqH:e:E:L:J:C:it:p:O:g:m:";
     static const struct option longopts[] = {
         // exposed command line options
         // NOTE: This set of required arguments need to be kept in sync
@@ -274,6 +276,7 @@ JL_DLLEXPORT void jl_parse_opts(int *argcp, char ***argvp)
         { "banner",          required_argument, 0, opt_banner },
         { "home",            required_argument, 0, 'H' },
         { "eval",            required_argument, 0, 'e' },
+        { "module",          required_argument, 0, 'm' },
         { "print",           required_argument, 0, 'E' },
         { "load",            required_argument, 0, 'L' },
         { "bug-report",      required_argument, 0, opt_bug_report },
@@ -412,6 +415,7 @@ restart_switch:
         case 'e': // eval
         case 'E': // print
         case 'L': // load
+        case 'm': // module
         case opt_bug_report: // bug
         {
             size_t sz = strlen(optarg) + 1;
@@ -425,6 +429,10 @@ restart_switch:
             ncmds++;
             cmds[ncmds] = 0;
             jl_options.cmds = cmds;
+            if (c == 'm') {
+                optind -= 1;
+                goto parsing_args_done;
+            }
             break;
         }
         case 'J': // sysimage
@@ -860,6 +868,7 @@ restart_switch:
                       "This is a bug, please report it.", c);
         }
     }
+    parsing_args_done:
     if (codecov || malloclog) {
         if (pkgimage_explicit && jl_options.use_pkgimages) {
             jl_errorf("julia: Can't use --pkgimages=yes together "
