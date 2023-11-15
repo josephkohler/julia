@@ -1283,7 +1283,8 @@ STATIC_INLINE void jl_array_uint32_set(void *a, size_t i, uint8_t x) JL_NOTSAFEP
 #define jl_string_data(s) ((char*)s + sizeof(void*))
 #define jl_string_len(s)  (*(size_t*)s)
 
-#define jl_gf_mtable(f) (((jl_datatype_t*)jl_typeof(f))->name->mt)
+#define jl_gf_ft_mtable(ft) (((jl_datatype_t*)ft)->name->mt)
+#define jl_gf_mtable(f) (jl_gf_ft_mtable(jl_typeof(f)))
 #define jl_gf_name(f)   (jl_gf_mtable(f)->name)
 
 // struct type info
