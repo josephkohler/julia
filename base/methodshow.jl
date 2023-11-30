@@ -301,7 +301,8 @@ function show_method_table(io::IO, ms::MethodList, max::Int=-1, header::Bool=tru
     last_shown_line_infos === nothing || empty!(last_shown_line_infos)
 
     modul = if mt === _TYPE_NAME.mt && length(ms) > 0 # type constructor
-            which(ms.ms[1].module, ms.ms[1].name)
+            i = findfirst(m -> isdefined(m.module, m.name), ms.ms)
+            i === nothing ? mt.module : which(ms.ms[i].module, ms.ms[i].name)
         else
             mt.module
         end
