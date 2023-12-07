@@ -33,6 +33,10 @@ uv_cond_t gc_threads_cond;
 uv_sem_t gc_sweep_assists_needed;
 // Mutex used to coordinate entry of GC threads in the mark loop
 uv_mutex_t gc_queue_observer_lock;
+#if defined(_OS_LINUX_) || defined(_OS_DARWIN_)
+// For page profiling
+FILE *page_profiling_file;
+#endif
 
 // Linked list of callback functions
 
@@ -1448,12 +1452,18 @@ STATIC_INLINE void gc_dump_page_utilization_data(void) JL_NOTSAFEPOINT
     }
 }
 
+int page_profile_enabled;
 int64_t buffered_pages = 0;
 
 // Returns pointer to terminal pointer of list rooted at *pfl.
 static void gc_sweep_page(jl_gc_pool_t *p, jl_gc_page_stack_t *allocd, jl_gc_page_stack_t *buffered,
                           jl_gc_pagemeta_t *pg, int osize) JL_NOTSAFEPOINT
 {
+#if defined(_OS_LINUX_) || defined(_OS_DARWIN_)
+    if (page_profile_enabled) {
+        fprintf(page_profiling_file, "data %p, osize %d\n", pg->data, osize);
+    }
+#endif
     char *data = pg->data;
     jl_taggedvalue_t *v = (jl_taggedvalue_t*)(data + GC_PAGE_OFFSET);
     char *lim = data + GC_PAGE_SZ - osize;
@@ -1508,12 +1518,23 @@ static void gc_sweep_page(jl_gc_pool_t *p, jl_gc_page_stack_t *allocd, jl_gc_pag
             int bits = v->bits.gc;
             // if an object is past `lim_newpages` then we can guarantee it's garbage
             if (!gc_marked(bits) || (char*)v >= lim_newpages) {
+            #if defined(_OS_LINUX_) || defined(_OS_DARWIN_)
+                if (page_profile_enabled) {
+                    fprintf(page_profiling_file, "[  garbage  ]\n");
+                }
+            #endif
                 *pfl = v;
                 pfl = &v->next;
                 pfl_begin = (pfl_begin != NULL) ? pfl_begin : pfl;
                 pg_nfree++;
             }
             else { // marked young or old
+            #if defined(_OS_LINUX_) || defined(_OS_DARWIN_)
+                if (page_profile_enabled) {
+                    const char *name = jl_typeof_str(jl_valueof(v));
+                    fprintf(page_profiling_file, "[  %s  ]\n", name);
+                }
+            #endif
                 if (current_sweep_full || bits == GC_MARKED) { // old enough
                     bits = v->bits.gc = GC_OLD; // promote
                 }
@@ -3807,6 +3828,14 @@ void jl_gc_init(void)
     uv_cond_init(&gc_threads_cond);
     uv_sem_init(&gc_sweep_assists_needed, 0);
     uv_mutex_init(&gc_queue_observer_lock);
+#if defined(_OS_LINUX_) || defined(_OS_DARWIN_)
+    // create a file for page profiling
+    page_profiling_file = fopen("julia_page_profile.out", "w");
+    if (page_profiling_file == NULL) {
+        fprintf(stderr, "could not open \"julia_page_profile.out\" for writing\n");
+        abort();
+    }
+#endif
 
     jl_gc_init_page();
     jl_gc_debug_init();
